@@ -56,6 +56,93 @@ impl Screen {
     }
 }
 
+#[cfg(all(not(target_arch = "wasm32"), feature = "image-io"))]
+fn save_image(path: &str, width: usize, height: usize, channels: usize, pixels: &[u8])
+{
+    let mut pixels_out = vec![0u8; width * height * channels];
+    for row in 0..height {
+        for col in 0..width {
+            for i in 0..channels {
+                pixels_out[channels * width * (height - row - 1) + channels * col + i] =
+                    pixels[channels * width * row + channels * col + i];
+            }
+        }
+    }
+
+    image::save_buffer(&std::path::Path::new(path), &pixels_out, width as u32, height as u32, image::RGB(8)).unwrap();
+}
+
+struct Todo {
+    path: String,
+    sync: crate::gl::Sync,
+    buffer: PixelPackBuffer,
+    width: usize,
+    height: usize,
+    channels: usize
+}
+
+pub struct AsyncSaveScreen {
+    gl: Gl,
+    todos: Vec<Todo>
+}
+
+impl AsyncSaveScreen {
+
+    pub fn new(gl: &Gl) -> Self {
+        AsyncSaveScreen { gl: gl.clone(), todos: Vec::new() }
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn save_screenshot_async(&mut self, path: &str, x: i32, y: i32, width: usize, height: usize) -> Result<(), Error>
+    {
+        self.gl.viewport(x, y, width, height);
+        self.gl.bind_framebuffer(consts::READ_FRAMEBUFFER, None);
+
+        let w = (width as i32 - x) as usize;
+        let h = (height as i32 - y) as usize;
+        let size_in_bytes = w * h * 3;
+        let buffer = PixelPackBuffer::new(&self.gl, size_in_bytes)?;
+        buffer.bind();
+        self.gl.read_pixels(x as u32, y as u32, width as u32, height as u32, consts::RGB, consts::UNSIGNED_BYTE);
+        buffer.unbind();
+
+        let sync = self.gl.fence_sync();
+        self.gl.flush();
+
+        self.todos.push(Todo {
+            path: path.to_string(), buffer,
+            sync, width: w, height: h, channels: 3
+        });
+        self.save();
+        Ok(())
+    }
+
+    fn save(&mut self) {
+        let gl = self.gl.clone();
+        self.todos.retain(|todo| {
+            //println!("check {}", todo.path);
+            if gl.client_wait_sync(&todo.sync, 0, 0) != consts::TIMEOUT_EXPIRED {
+                gl.delete_sync(&todo.sync);
+                let pixels = todo.buffer.read_pixels(todo.width * todo.height * todo.channels);
+                image::save_buffer(&std::path::Path::new(&todo.path), &pixels, todo.width as u32, todo.height as u32, image::RGB(8)).unwrap();
+                /*println!("save: {} {} {} -> {} (pixels: {})", todo.width, todo.height, todo.channels, todo.path, pixels.len());
+                save_image(&todo.path, todo.width, todo.height, todo.channels, &pixels);*/
+                false
+            }
+            else {true}
+        });
+    }
+}
+
+impl Drop for AsyncSaveScreen
+{
+    fn drop(&mut self)
+    {
+        println!("drop");
+        self.save();
+    }
+}
+
 pub struct RenderTarget {}
 
 impl RenderTarget
