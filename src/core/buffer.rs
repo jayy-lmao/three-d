@@ -171,3 +171,46 @@ impl Drop for UniformBuffer
 }
 
 
+pub struct PixelPackBuffer {
+    gl: Gl,
+    id: crate::gl::Buffer
+}
+
+impl PixelPackBuffer
+{
+    pub fn new(gl: &Gl, size_in_bytes: usize) -> Result<Self, Error>
+    {
+        let buffer = Self{ gl: gl.clone(), id: gl.create_buffer().unwrap() };
+        buffer.bind();
+        gl.buffer_data(consts::PIXEL_PACK_BUFFER, size_in_bytes as u32, consts::STREAM_READ);
+        buffer.unbind();
+        Ok(buffer)
+    }
+
+    pub fn read_pixels(&self, size_in_bytes: usize) -> Vec<u8> {
+        let pixels = vec![0u8; size_in_bytes];
+        self.bind();
+        self.gl.buffer_data_u8(consts::PIXEL_PACK_BUFFER, &pixels, consts::STREAM_READ);
+        self.unbind();
+        pixels
+    }
+
+    pub(crate) fn bind(&self)
+    {
+        self.gl.bind_buffer(consts::PIXEL_PACK_BUFFER, &self.id);
+    }
+
+    pub(crate) fn unbind(&self)
+    {
+        self.gl.unbind_buffer(consts::PIXEL_PACK_BUFFER);
+    }
+}
+
+impl Drop for PixelPackBuffer
+{
+    fn drop(&mut self)
+    {
+        self.gl.delete_buffer(&self.id);
+    }
+}
+
