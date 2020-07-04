@@ -57,6 +57,26 @@ impl Window
     pub fn render_loop<F: 'static>(&mut self, mut callback: F) -> Result<(), Error>
         where F: FnMut(frame_input::FrameInput)
     {
+        self.render_loop_with_parameters(&mut (), move |_, frame_input| {
+            for event in frame_input.events.iter() {
+                match event {
+                    crate::window::frame_input::Event::Key { state, kind } => {
+                        if kind == "Escape" && *state == crate::window::frame_input::State::Pressed
+                        {
+                            return true;
+                        }
+                    },
+                    _ => {}
+                }
+            }
+            callback(frame_input);
+            false
+        })
+    }
+
+    pub fn render_loop_with_parameters<F: 'static, T>(&mut self, parameters: &mut T, mut callback: F) -> Result<(), Error>
+        where F: FnMut(&mut T, frame_input::FrameInput) -> bool
+    {
         let mut last_time = std::time::Instant::now();
         let mut count = 0;
         let mut accumulated_time = 0.0;
@@ -86,7 +106,7 @@ impl Window
 
             let (screen_width, screen_height) = self.framebuffer_size();
             let frame_input = frame_input::FrameInput {events, elapsed_time, screen_width, screen_height};
-            callback(frame_input);
+            exit = exit || callback(parameters, frame_input);
             error = self.gl_window.swap_buffers();
         }
         error?;
@@ -167,7 +187,6 @@ impl Window
         match event {
             Event::WindowEvent{ event, .. } => match event {
                 WindowEvent::CloseRequested => true,
-                WindowEvent::KeyboardInput {input, ..} => Some(VirtualKeyCode::Escape) == input.virtual_keycode,
                 _ => false
             },
             _ => false
