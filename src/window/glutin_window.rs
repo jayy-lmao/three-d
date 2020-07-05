@@ -105,7 +105,8 @@ impl Window
             }
 
             let (screen_width, screen_height) = self.framebuffer_size();
-            let frame_input = frame_input::FrameInput {events, elapsed_time, screen_width, screen_height};
+            let (window_width, window_height) = self.size();
+            let frame_input = frame_input::FrameInput {events, elapsed_time, screen_width, screen_height, window_width, window_height};
             exit = exit || callback(parameters, frame_input);
             error = self.gl_window.swap_buffers();
         }
@@ -123,6 +124,11 @@ impl Window
     {
         let t: (u32, u32) = self.gl_window.get_inner_size().unwrap().into();
         (t.0 as usize, t.1 as usize)
+    }
+
+    pub fn aspect(&self) -> f32 {
+        let (width, height) = self.framebuffer_size();
+        width as f32 / height as f32
     }
 
     pub fn gl(&self) -> crate::Gl
