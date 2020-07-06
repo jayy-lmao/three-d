@@ -2,6 +2,8 @@
 use glutin::*;
 use crate::window::frame_input;
 use crate::gl;
+use std::cell::RefCell;
+use std::rc::Rc;
 
 #[derive(Debug)]
 pub enum Error {
@@ -57,7 +59,7 @@ impl Window
     pub fn render_loop<F: 'static>(&mut self, mut callback: F) -> Result<(), Error>
         where F: FnMut(frame_input::FrameInput)
     {
-        self.render_loop_with_parameters(&mut (), move |_, frame_input| {
+        self.render_loop_with_parameters(Rc::new(RefCell::new(())), move |_, frame_input| {
             for event in frame_input.events.iter() {
                 match event {
                     crate::window::frame_input::Event::Key { state, kind } => {
@@ -74,8 +76,8 @@ impl Window
         })
     }
 
-    pub fn render_loop_with_parameters<F: 'static, T>(&mut self, parameters: &mut T, mut callback: F) -> Result<(), Error>
-        where F: FnMut(&mut T, frame_input::FrameInput) -> bool
+    pub fn render_loop_with_parameters<F: 'static, T: 'static>(&mut self, parameters: Rc<RefCell<T>>, mut callback: F) -> Result<(), Error>
+        where F: FnMut(Rc<RefCell<T>>, frame_input::FrameInput) -> bool
     {
         let mut last_time = std::time::Instant::now();
         let mut count = 0;
@@ -107,7 +109,7 @@ impl Window
             let (screen_width, screen_height) = self.framebuffer_size();
             let (window_width, window_height) = self.size();
             let frame_input = frame_input::FrameInput {events, elapsed_time, screen_width, screen_height, window_width, window_height};
-            exit = exit || callback(parameters, frame_input);
+            exit = exit || callback(parameters.clone(), frame_input);
             error = self.gl_window.swap_buffers();
         }
         error?;

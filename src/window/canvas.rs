@@ -5,6 +5,7 @@ use web_sys::WebGl2RenderingContext;
 use std::cell::RefCell;
 use std::rc::Rc;
 use crate::frame_input::*;
+use log::info;
 
 #[derive(Debug)]
 pub enum Error {
@@ -82,6 +83,51 @@ impl Window
             &(*events).borrow_mut().clear();
 
             request_animation_frame(f.borrow().as_ref().unwrap());
+        }) as Box<dyn FnMut()>));
+
+        request_animation_frame(g.borrow().as_ref().unwrap());
+        Ok(())
+    }
+
+    pub fn render_loop_with_parameters<F: 'static, T: 'static>(&mut self, parameters: Rc<RefCell<T>>, mut callback: F) -> Result<(), Error>
+        where F: FnMut(Rc<RefCell<T>>, crate::FrameInput) -> bool
+    {
+                info!("Into!");
+        let f = Rc::new(RefCell::new(None));
+        let g = f.clone();
+
+        let events = Rc::new(RefCell::new(Vec::new()));
+        let performance = self.window.performance().ok_or(Error::PerformanceError {message: "Performance (for timing) is not found on the window.".to_string()})?;
+        let mut last_time = performance.now();
+        let last_position = Rc::new(RefCell::new(None));
+        let last_zoom = Rc::new(RefCell::new(None));
+
+        self.add_mousedown_event_listener(events.clone())?;
+        self.add_touchstart_event_listener(events.clone(), last_position.clone(), last_zoom.clone())?;
+        self.add_mouseup_event_listener(events.clone())?;
+        self.add_touchend_event_listener(events.clone(), last_position.clone(), last_zoom.clone())?;
+        self.add_mousemove_event_listener(events.clone())?;
+        self.add_touchmove_event_listener(events.clone(), last_position.clone(), last_zoom.clone())?;
+        self.add_mousewheel_event_listener(events.clone())?;
+        self.add_key_down_event_listener(events.clone())?;
+        self.add_key_up_event_listener(events.clone())?;
+
+        *g.borrow_mut() = Some(Closure::wrap(Box::new(move || {
+            let now = performance.now();
+            let elapsed_time = now - last_time;
+            last_time = now;
+            let (screen_width, screen_height) = (window().inner_width().unwrap().as_f64().unwrap() as usize,
+                        window().inner_height().unwrap().as_f64().unwrap() as usize);
+            let frame_input = crate::FrameInput {events: (*events).borrow().clone(), elapsed_time, screen_width, screen_height,
+                window_width: screen_width, window_height: screen_height};
+            let exit = callback(parameters.clone(), frame_input);
+            &(*events).borrow_mut().clear();
+
+            if !exit {
+                request_animation_frame(f.borrow().as_ref().unwrap());
+            } else {
+                info!("Exit!");
+            }
         }) as Box<dyn FnMut()>));
 
         request_animation_frame(g.borrow().as_ref().unwrap());
