@@ -1,5 +1,8 @@
 
 use three_d::*;
+use log::info;
+use std::rc::Rc;
+use std::cell::RefCell;
 
 fn main() {
     let args: Vec<String> = std::env::args().collect();
@@ -33,6 +36,7 @@ fn main() {
 
     // main loop
     let mut time = 0.0;
+    let mut count = Rc::new(RefCell::new(0));
     window.render_loop(move |frame_input|
     {
         time += frame_input.elapsed_time as f32;
@@ -48,10 +52,21 @@ fn main() {
             program.draw_arrays(3);
         }).unwrap();
 
+        wasm_bindgen_futures::spawn_local(test(count.clone()));
+        info!("count: {}", count.borrow());
+        wasm_bindgen_futures::spawn_local(async move {
+            info!("Async works!");
+        });
+
         if let Some(ref path) = screenshot_path {
             #[cfg(target_arch = "x86_64")]
             Screen::save_color(path, &gl, 0, 0, screen_width, screen_height).unwrap();
             std::process::exit(1);
         }
     }).unwrap();
+}
+
+async fn test(par: Rc<RefCell<u32>>) {
+    let t = *par.borrow() + 1;
+    *par.borrow_mut() = t;
 }

@@ -11,5 +11,6 @@ crate-type = ["cdylib"]
 three-d = { path = "../../", features=["no-renderer"] }
 log = "0.4"
 wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4"
 console_error_panic_hook = "0.1"
 console_log = "0.1"
