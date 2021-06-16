@@ -26,6 +26,16 @@ fn main() {
             1000.0,
         )
         .unwrap(),
+        EventHandler {
+            left_drag: ControlType::RotateAroundWithFixedUp { target, speed: 0.1 },
+            scroll: ControlType::ZoomVertical {
+                target,
+                speed: 0.02,
+                min: 5.0,
+                max: 100.0,
+            },
+            ..Default::default()
+        },
     );
     let mut gui = three_d::GUI::new(&context).unwrap();
 
@@ -102,7 +112,6 @@ fn main() {
             .unwrap();
 
             // main loop
-            let mut rotating = false;
             let mut shadows_enabled = true;
 
             let mut ambient_enabled = true;
@@ -243,44 +252,8 @@ fn main() {
                         height: frame_input.viewport.height,
                     };
                     change |= camera.set_viewport(viewport).unwrap();
+                    change |= camera.handle_events(&frame_input.events).unwrap();
 
-                    for event in frame_input.events.iter() {
-                        match event {
-                            Event::MouseClick {
-                                state,
-                                button,
-                                handled,
-                                ..
-                            } => {
-                                if !handled {
-                                    rotating =
-                                        *button == MouseButton::Left && *state == State::Pressed;
-                                    change = true;
-                                }
-                            }
-                            Event::MouseMotion { delta, handled, .. } => {
-                                if !handled && rotating {
-                                    camera
-                                        .rotate_around_with_fixed_up(
-                                            &target,
-                                            0.1 * delta.0 as f32,
-                                            0.1 * delta.1 as f32,
-                                        )
-                                        .unwrap();
-                                    change = true;
-                                }
-                            }
-                            Event::MouseWheel { delta, handled, .. } => {
-                                if !handled {
-                                    camera
-                                        .zoom_towards(&target, 0.02 * delta.1 as f32, 5.0, 100.0)
-                                        .unwrap();
-                                    change = true;
-                                }
-                            }
-                            _ => {}
-                        }
-                    }
                     let time = 0.001 * frame_input.accumulated_time;
                     let c = time.cos() as f32;
                     let s = time.sin() as f32;
