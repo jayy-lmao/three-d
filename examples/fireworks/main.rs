@@ -25,6 +25,16 @@ fn main() {
             1000.0,
         )
         .unwrap(),
+        EventHandler {
+            left_drag: ControlType::RotateAroundWithFixedUp { target, speed: 0.1 },
+            scroll: ControlType::ZoomOnVertical {
+                target,
+                speed: 0.1,
+                min: 0.1,
+                max: 200.0,
+            },
+            ..Default::default()
+        },
     );
 
     let mut rng = rand::thread_rng();
@@ -49,36 +59,11 @@ fn main() {
 
     // main loop
     let mut time = explosion_time + 100.0;
-    let mut rotating = false;
     let mut color_index = 0;
     window
         .render_loop(move |frame_input| {
             camera.set_viewport(frame_input.viewport).unwrap();
-
-            for event in frame_input.events.iter() {
-                match event {
-                    Event::MouseClick { state, button, .. } => {
-                        rotating = *button == MouseButton::Left && *state == State::Pressed;
-                    }
-                    Event::MouseMotion { delta, .. } => {
-                        if rotating {
-                            camera
-                                .rotate_around_with_fixed_up(
-                                    &target,
-                                    0.1 * delta.0 as f32,
-                                    0.1 * delta.1 as f32,
-                                )
-                                .unwrap();
-                        }
-                    }
-                    Event::MouseWheel { delta, .. } => {
-                        camera
-                            .zoom_towards(&target, 0.1 * delta.1 as f32, 0.1, 200.0)
-                            .unwrap();
-                    }
-                    _ => {}
-                }
-            }
+            camera.handle_events(&frame_input.events).unwrap();
             let elapsed_time = (frame_input.elapsed_time * 0.001) as f32;
             time += elapsed_time;
             if time > explosion_time {

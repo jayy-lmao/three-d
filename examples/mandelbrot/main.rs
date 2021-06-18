@@ -11,7 +11,6 @@ fn main() {
     .unwrap();
     let context = window.gl().unwrap();
 
-    // Renderer
     let mut camera = CameraControl::new(
         Camera::new_orthographic(
             &context,
@@ -24,6 +23,7 @@ fn main() {
             10.0,
         )
         .unwrap(),
+        EventHandler::default(),
     );
 
     let indices = vec![0u8, 1, 2, 2, 3, 0];
@@ -45,7 +45,6 @@ fn main() {
         MeshProgram::new(&context, include_str!("../assets/shaders/mandelbrot.frag")).unwrap();
 
     // main loop
-    let mut panning = false;
     let mut pick: Option<((f64, f64), Vec3)> = None;
     window
         .render_loop(move |frame_input| {
@@ -54,28 +53,14 @@ fn main() {
 
             for event in frame_input.events.iter() {
                 match event {
-                    Event::MouseClick { state, button, .. } => {
-                        panning = *button == MouseButton::Left && *state == State::Pressed;
-                    }
-                    Event::MouseMotion {
-                        delta, position, ..
-                    } => {
-                        if panning {
-                            let speed = 0.003 * camera.position().z.abs();
-                            camera
-                                .pan(speed * delta.0 as f32, speed * delta.1 as f32)
-                                .unwrap();
-                            redraw = true;
-                        }
+                    Event::MouseMotion { position, .. } => {
                         if let Some((p, _)) = pick {
                             if (p.0 - position.0).abs() > 2.0 || (p.1 - position.1).abs() > 2.0 {
                                 pick = None;
                             }
                         }
                     }
-                    Event::MouseWheel {
-                        delta, position, ..
-                    } => {
+                    Event::MouseWheel { position, .. } => {
                         if pick.is_none() {
                             let pixel = (
                                 (frame_input.device_pixel_ratio * position.0) as f32,
@@ -84,17 +69,26 @@ fn main() {
                             let p = camera.pick(pixel, 10.0, &[&mesh]).unwrap();
                             pick = p.map(|pos| (*position, pos));
                         };
-                        if let Some((_, pos)) = pick {
-                            let distance = pos.distance(*camera.position());
-                            camera
-                                .zoom_towards(&pos, distance * 0.05 * delta.1 as f32, 0.00001, 10.0)
-                                .unwrap();
-                            redraw = true;
-                        }
                     }
                     _ => {}
                 }
             }
+
+            let camera_pos = *camera.position();
+            camera.event_handler.left_drag = ControlType::Pan {
+                speed: 0.003 * camera_pos.z.abs(),
+            };
+            camera.event_handler.scroll = if let Some((_, pos)) = pick {
+                ControlType::ZoomOnVertical {
+                    speed: pos.distance(camera_pos) * 0.05,
+                    target: pos,
+                    min: 0.00001,
+                    max: 10.0,
+                }
+            } else {
+                ControlType::None
+            };
+            redraw |= camera.handle_events(&frame_input.events).unwrap();
 
             if redraw {
                 Screen::write(&context, ClearState::color(0.0, 1.0, 1.0, 1.0), || {

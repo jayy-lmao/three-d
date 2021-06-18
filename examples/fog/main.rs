@@ -24,6 +24,16 @@ fn main() {
             1000.0,
         )
         .unwrap(),
+        EventHandler {
+            left_drag: ControlType::RotateAround { target, speed: 0.1 },
+            scroll: ControlType::ZoomOnVertical {
+                target,
+                speed: 0.02,
+                min: 5.0,
+                max: 100.0,
+            },
+            ..Default::default()
+        },
     );
 
     Loader::load(
@@ -77,7 +87,6 @@ fn main() {
             .unwrap();
 
             // main loop
-            let mut rotating = false;
             let mut depth_texture = None;
             window
                 .render_loop(move |frame_input| {
@@ -99,27 +108,6 @@ fn main() {
 
                     for event in frame_input.events.iter() {
                         match event {
-                            Event::MouseClick { state, button, .. } => {
-                                rotating = *button == MouseButton::Left && *state == State::Pressed;
-                            }
-                            Event::MouseMotion { delta, .. } => {
-                                if rotating {
-                                    camera
-                                        .rotate_around(
-                                            &target,
-                                            0.1 * delta.0 as f32,
-                                            0.1 * delta.1 as f32,
-                                        )
-                                        .unwrap();
-                                    change = true;
-                                }
-                            }
-                            Event::MouseWheel { delta, .. } => {
-                                camera
-                                    .zoom_towards(&target, 0.02 * delta.1 as f32, 5.0, 100.0)
-                                    .unwrap();
-                                change = true;
-                            }
                             Event::Key { state, kind, .. } => {
                                 if *kind == Key::F && *state == State::Pressed {
                                     fog_enabled = !fog_enabled;
@@ -130,6 +118,7 @@ fn main() {
                             _ => {}
                         }
                     }
+                    change |= camera.handle_events(&frame_input.events).unwrap();
 
                     // draw
                     if change {

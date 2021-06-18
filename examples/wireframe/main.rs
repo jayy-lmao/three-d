@@ -26,6 +26,16 @@ fn main() {
             1000.0,
         )
         .unwrap(),
+        EventHandler {
+            left_drag: ControlType::RotateAroundWithFixedUp { target, speed: 0.1 },
+            scroll: ControlType::ZoomOnVertical {
+                target,
+                speed: 0.1,
+                min: 1.0,
+                max: 200.0,
+            },
+            ..Default::default()
+        },
     );
 
     Loader::load(
@@ -85,38 +95,11 @@ fn main() {
                     .unwrap();
 
             // main loop
-            let mut rotating = false;
             window
                 .render_loop(move |frame_input| {
                     let mut redraw = frame_input.first_frame;
                     redraw |= camera.set_viewport(frame_input.viewport).unwrap();
-
-                    for event in frame_input.events.iter() {
-                        match event {
-                            Event::MouseClick { state, button, .. } => {
-                                rotating = *button == MouseButton::Left && *state == State::Pressed;
-                            }
-                            Event::MouseMotion { delta, .. } => {
-                                if rotating {
-                                    camera
-                                        .rotate_around_with_fixed_up(
-                                            &target,
-                                            0.1 * delta.0 as f32,
-                                            0.1 * delta.1 as f32,
-                                        )
-                                        .unwrap();
-                                    redraw = true;
-                                }
-                            }
-                            Event::MouseWheel { delta, .. } => {
-                                camera
-                                    .zoom_towards(&target, 0.1 * delta.1 as f32, 1.0, 100.0)
-                                    .unwrap();
-                                redraw = true;
-                            }
-                            _ => {}
-                        }
-                    }
+                    redraw |= camera.handle_events(&frame_input.events).unwrap();
 
                     if redraw {
                         Screen::write(

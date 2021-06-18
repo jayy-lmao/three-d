@@ -24,6 +24,16 @@ fn main() {
             1000.0,
         )
         .unwrap(),
+        EventHandler {
+            left_drag: ControlType::RotateAroundWithFixedUp { target, speed: 0.1 },
+            scroll: ControlType::ZoomOnVertical {
+                target,
+                speed: 0.02,
+                min: 5.0,
+                max: 100.0,
+            },
+            ..Default::default()
+        },
     );
 
     let mut pick_mesh = Mesh::new_with_material(
@@ -62,21 +72,20 @@ fn main() {
                     .unwrap();
 
             // main loop
-            let mut rotating = false;
             window
-                .render_loop(move |frame_input| {
+                .render_loop(move |mut frame_input| {
                     let mut change = frame_input.first_frame;
                     change |= camera.set_viewport(frame_input.viewport).unwrap();
 
-                    for event in frame_input.events.iter() {
+                    for event in frame_input.events.iter_mut() {
                         match event {
                             Event::MouseClick {
                                 state,
                                 button,
                                 position,
+                                handled,
                                 ..
                             } => {
-                                rotating = *button == MouseButton::Left && *state == State::Pressed;
                                 if *button == MouseButton::Left && *state == State::Pressed {
                                     let pixel = (
                                         (frame_input.device_pixel_ratio * position.0) as f32,
@@ -87,30 +96,14 @@ fn main() {
                                     {
                                         pick_mesh.transformation = Mat4::from_translation(pick);
                                         change = true;
+                                        *handled = true;
                                     }
                                 }
-                            }
-                            Event::MouseMotion { delta, .. } => {
-                                if rotating {
-                                    camera
-                                        .rotate_around(
-                                            &target,
-                                            0.1 * delta.0 as f32,
-                                            0.1 * delta.1 as f32,
-                                        )
-                                        .unwrap();
-                                    change = true;
-                                }
-                            }
-                            Event::MouseWheel { delta, .. } => {
-                                camera
-                                    .zoom_towards(&target, 0.02 * delta.1 as f32, 5.0, 100.0)
-                                    .unwrap();
-                                change = true;
                             }
                             _ => {}
                         }
                     }
+                    change |= camera.handle_events(&frame_input.events).unwrap();
 
                     // draw
                     if change {
