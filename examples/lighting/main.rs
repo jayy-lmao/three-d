@@ -28,7 +28,7 @@ fn main() {
         .unwrap(),
         EventHandler {
             left_drag: ControlType::RotateAroundWithFixedUp { target, speed: 0.1 },
-            scroll: ControlType::ZoomVertical {
+            scroll: ControlType::ZoomOnVertical {
                 target,
                 speed: 0.02,
                 min: 5.0,

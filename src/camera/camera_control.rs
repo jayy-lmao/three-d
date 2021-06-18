@@ -35,13 +35,13 @@ pub enum ControlType {
     Pan {
         speed: f32,
     },
-    ZoomHorizontal {
+    ZoomOnHorizontal {
         target: Vec3,
         speed: f32,
         min: f32,
         max: f32,
     },
-    ZoomVertical {
+    ZoomOnVertical {
         target: Vec3,
         speed: f32,
         min: f32,
@@ -138,7 +138,7 @@ impl CameraControl {
             ControlType::Pan { speed } => {
                 self.pan(speed * x as f32, speed * y as f32)?;
             }
-            ControlType::ZoomHorizontal {
+            ControlType::ZoomOnHorizontal {
                 target,
                 speed,
                 min,
@@ -146,7 +146,7 @@ impl CameraControl {
             } => {
                 self.zoom_towards(&target, speed * x as f32, min, max)?;
             }
-            ControlType::ZoomVertical {
+            ControlType::ZoomOnVertical {
                 target,
                 speed,
                 min,
