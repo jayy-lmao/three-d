@@ -31,45 +31,14 @@ fn main() {
             "./examples/assets/sphere.dae",
         ],
         move |mut loaded| {
-            let (mut meshes, mut materials) = loaded.dae("./examples/assets/sphere.dae").unwrap();
+            let (mut meshes, _materials) = loaded.dae("./examples/assets/sphere.dae").unwrap();
             let cpu_mesh = meshes.remove(0);
-            // let cpu_material = materials.remove(0);
-            let mut model = Mesh::new_with_material(
+            let mut model = Mesh::new(
                 &context,
                 &cpu_mesh,
-                &Material::default(),
-                // &Material::new(&context, &cpu_material).unwrap(),
             )
             .unwrap();
             model.transformation = Mat4::from_translation(vec3(0.0, 2.0, 0.0));
-            model.cull = CullType::Back;
-
-            let wireframe_material = Material {
-                name: "wireframe".to_string(),
-                color_source: ColorSource::Color(vec4(0.9, 0.2, 0.2, 1.0)),
-                roughness: 0.5,
-                metallic: 0.9,
-                ..Default::default()
-            };
-            let mut edges = InstancedMesh::new_with_material(
-                &context,
-                &edge_transformations(&cpu_mesh),
-                &CPUMesh::cylinder(0.007, 1.0, 10),
-                &wireframe_material,
-            )
-            .unwrap();
-            edges.transformation = Mat4::from_translation(vec3(0.0, 2.0, 0.0));
-            edges.cull = CullType::Back;
-
-            let mut vertices = InstancedMesh::new_with_material(
-                &context,
-                &vertex_transformations(&cpu_mesh),
-                &CPUMesh::sphere(0.015),
-                &wireframe_material,
-            )
-            .unwrap();
-            vertices.transformation = Mat4::from_translation(vec3(0.0, 2.0, 0.0));
-            vertices.cull = CullType::Back;
 
             let ambient_light = AmbientLight {
                 intensity: 0.7,
@@ -125,22 +94,7 @@ fn main() {
                                     &[],
                                     &[],
                                 )?;
-                                vertices.render_with_lighting(
-                                    RenderStates::default(),
-                                    &camera,
-                                    Some(&ambient_light),
-                                    &[&directional_light0, &directional_light1],
-                                    &[],
-                                    &[],
-                                )?;
-                                edges.render_with_lighting(
-                                    RenderStates::default(),
-                                    &camera,
-                                    Some(&ambient_light),
-                                    &[&directional_light0, &directional_light1],
-                                    &[],
-                                    &[],
-                                )?;
+
                                 Ok(())
                             },
                         )
