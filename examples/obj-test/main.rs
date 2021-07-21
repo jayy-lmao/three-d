@@ -4,7 +4,7 @@ fn main() {
     let args: Vec<String> = std::env::args().collect();
 
     let window = Window::new(WindowSettings {
-        title: "DAE!".to_string(),
+        title: "OBJ!".to_string(),
         max_size: Some((1280, 720)),
         ..Default::default()
     })
@@ -28,18 +28,14 @@ fn main() {
 
     Loader::load(
         &[
-            "./examples/assets/sphere_03.dae",
-            "./examples/assets/sphere_02.dae",
-            "./examples/assets/cube_01.dae",
-            "./examples/assets/cube_02.dae",
-            "./examples/assets/cube_03.dae",
-            "./examples/assets/sphere.jpg",
-            "./examples/assets/COLOMBE.png",
+            "./examples/assets/cube_03.obj",
+            "./examples/assets/cube_03.mtl",
             "./examples/assets/chips.jpg",
             "./examples/assets/chips.png",
+            "./examples/assets/COLOMBE.png",
         ],
         move |mut loaded| {
-            let (cpu_meshes, cpu_materials) = loaded.dae("./examples/assets/cube_03.dae").unwrap();
+            let (cpu_meshes, cpu_materials) = loaded.obj("./examples/assets/cube_03.obj").unwrap();
             let mut model = Mesh::new_with_material(
                 &context,
                 &cpu_meshes[0],

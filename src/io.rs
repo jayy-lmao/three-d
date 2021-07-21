@@ -130,6 +130,10 @@ fn image_from_bytes(bytes: &[u8]) -> Result<crate::definition::CPUTexture<u8>, I
         DynamicImage::ImageRgba16(_) => unimplemented!(),
     };
 
+    println!("width: {:?}", img.width());
+    println!("height: {:?}", img.height());
+    println!("format: {:?}",  format);
+
     Ok(CPUTexture {
         data: img.to_bytes(),
         width: img.width(),

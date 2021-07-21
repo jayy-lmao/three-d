@@ -5,13 +5,12 @@ use collada::Vertex;
 
 use crate::definition::*;
 use crate::io::*;
-use std::collections::HashMap;
 use std::path::Path;
 
-type VertexIndex = usize;
-type TextureIndex = usize;
-type NormalIndex = usize;
-type DaeVTNIndex = (VertexIndex, Option<TextureIndex>, Option<NormalIndex>);
+// type VertexIndex = usize;
+// type TextureIndex = usize;
+// type NormalIndex = usize;
+// type DaeVTNIndex = (VertexIndex, Option<TextureIndex>, Option<NormalIndex>);
 
 impl Loaded {
     ///
@@ -71,9 +70,10 @@ impl Loaded {
 
                     let material = CPUMaterial {
                         name: k.to_string(),
-                        color: Some((color[0], color[1], color[2], color[3])),
+                        // color: Some((color[0], color[1], color[2], color[3])),
                         // color: None,
-                        // color_texture: texture,
+                        color: Some((0.5, 0.5, 0.5, 1.)),
+                        color_texture: texture,
                         ..Default::default()
                     };
                     cpu_materials.push(material);
@@ -91,6 +91,9 @@ impl Loaded {
                 let mut normals = Vec::new();
                 let mut uvs = Vec::new();
                 let mut indices = Vec::new();
+
+                // let mut map: HashMap<usize, usize> = HashMap::new();
+
 
                 for shape in &geo.mesh[..] {
                     match shape {
@@ -150,6 +153,10 @@ impl Loaded {
                         _ => {}
                     }
                 }
+                println!("normals: {:?}", normals);
+                println!("normals len: {:?}", normals.len());
+                println!("uvs len: {:?}", uvs.len());
+                println!("uvs: {:?}", uvs);
                 cpu_meshes.push(CPUMesh {
                     name: object.name.to_string(),
                     material_name: None,
