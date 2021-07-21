@@ -1,3 +1,8 @@
+use collada::document::LambertDiffuse;
+use collada::document::MaterialEffect;
+use collada::TVertex;
+use collada::Vertex;
+
 use crate::definition::*;
 use crate::io::*;
 use std::collections::HashMap;
@@ -20,20 +25,66 @@ impl Loaded {
             collada::document::ColladaDocument::from_str(&*String::from_utf8(dae_bytes).unwrap())
                 .unwrap();
         let p = path.as_ref().parent().unwrap();
+        let obj_set = dae.get_obj_set().unwrap();
+        // let mat_lib = obj_set.material_library; // apparently no materials?
 
         // Parse materials
-        let mut cpu_materials = Vec::new();
-        // if let Some(material_library) = dae.material_library {
-        //     let bytes = self.remove_bytes(p.join(material_library).to_str().unwrap())?;
-        // //     let materials = wavefront_obj::mtl::parse(String::from_utf8(bytes).unwrap())?.materials;
+        let material_to_effect = dae.get_material_to_effect();
+        println!("material to effect: {:?}", material_to_effect);
+        let effect_library = dae.get_effect_library();
+        let images = dae.get_images();
+        println!("images: {:?}", images);
 
-        //     for material in materials {
-        //     }
-        // }
+        let mut cpu_materials = Vec::new();
+
+        for (k, v) in material_to_effect {
+            let material_name = &v[..];
+            if let Some(effect) = effect_library.get(material_name) {
+                if let MaterialEffect::Lambert(lambert) = effect.clone() {
+                    let mut color;
+                    let texture_name = match lambert.diffuse {
+                        LambertDiffuse::Texture(texture) => {
+                            color = lambert.emission;
+                            Some(texture)
+                        }
+                        LambertDiffuse::Color(lambert_color) => {
+                            color = lambert_color;
+                            None
+                        }
+                    };
+
+                    let texture = match texture_name {
+                        Some(sampler) => {
+                            let texture_id = sampler.replace("-sampler", "");
+                            let image = if let Some(filename) = images.get(&texture_id[..]) {
+                                let path = p.join(filename).to_str().unwrap().to_owned();
+                                let image = self.image(&path)?;
+                                Some(image)
+                            } else {
+                                None
+                            };
+                            image
+                        }
+                        _ => None,
+                    };
+                    println!("color: {:?}", color);
+
+                    let material = CPUMaterial {
+                        name: k.to_string(),
+                        color: Some((color[0], color[1], color[2], color[3])),
+                        // color: None,
+                        // color_texture: texture,
+                        ..Default::default()
+                    };
+                    cpu_materials.push(material);
+                };
+            };
+        }
 
         // Parse meshes
         let mut cpu_meshes = Vec::new();
-        for object in dae.get_obj_set().unwrap().objects.into_iter() {
+        // println!("material: {:?}",mat_lib);
+        for object in obj_set.objects.into_iter() {
             // Objects consisting of several meshes with different materials
             for geo in object.geometry.iter() {
                 let mut positions = Vec::new();
@@ -41,113 +92,59 @@ impl Loaded {
                 let mut uvs = Vec::new();
                 let mut indices = Vec::new();
 
-                let mut map: HashMap<usize, usize> = HashMap::new();
-
-                let mut process = |i: DaeVTNIndex| {
-                    let mut index = map.get(&i.0).map(|v| *v);
-
-                    let uvw = i.1.map(|tex_index| object.tex_vertices[tex_index]);
-                    let normal = i.2.map(|normal_index| object.normals[normal_index]);
-
-                    if let Some(ind) = index {
-                        if let Some(tex) = uvw {
-                            if ((uvs[ind * 2] - tex.x as f32) as f32).abs() > std::f32::EPSILON
-                                || ((uvs[ind * 2 + 1] - tex.y as f32) as f32).abs()
-                                    > std::f32::EPSILON
-                            {
-                                index = None;
-                            }
-                        }
-                        if let Some(n) = normal {
-                            if ((normals[ind * 3] - n.x as f32) as f32).abs() > std::f32::EPSILON
-                                || ((normals[ind * 3 + 1] - n.y as f32) as f32).abs()
-                                    > std::f32::EPSILON
-                                || ((normals[ind * 3 + 2] - n.z as f32) as f32).abs()
-                                    > std::f32::EPSILON
-                            {
-                                index = None;
-                            }
-                        }
-                    }
-
-                    if index.is_none() {
-                        index = Some(positions.len() / 3);
-                        map.insert(i.0, index.unwrap());
-                        let position = object.vertices[i.0];
-                        positions.push(position.x as f32);
-                        positions.push(position.y as f32);
-                        positions.push(position.z as f32);
-
-                        if let Some(tex) = uvw {
-                            uvs.push(tex.x as f32);
-                            uvs.push(tex.y as f32);
-                        }
-                        if let Some(n) = normal {
-                            normals.push(n.x as f32);
-                            normals.push(n.y as f32);
-                            normals.push(n.z as f32);
-                        }
-                    }
-
-                    indices.push(index.unwrap() as u32);
-                };
-
                 for shape in &geo.mesh[..] {
                     match shape {
                         collada::PrimitiveElement::Triangles(tris) => {
-                            for (i, tri_vert) in tris.vertices.to_vec().into_iter().enumerate() {
-                                let curr_tex_verts = match &tris.tex_vertices {
-                                    Some(tex_verts) => Some(tex_verts[i]),
-                                    None => None,
-                                };
-                                let curr_normals = match &tris.normals {
-                                    Some(norms) => Some(norms[i]),
-                                    None => None,
-                                };
+                            let tris = tris.clone();
+                            tris.vertices.into_iter().enumerate().for_each(|(i , v)| {
+                                // let mut index: Vec<u32> = vec![v.0 as u32,v.1 as u32,v.2 as u32];
+                                let i = i as u32 * 3;
+                                let mut index = vec![i, i + 1, i + 2];
 
-                                let dae_vtn0: DaeVTNIndex = (
-                                    tri_vert.0,
-                                    if let Some(v) = curr_tex_verts {
-                                        Some(v.0)
-                                    } else {
-                                        None
-                                    },
-                                    if let Some(n) = curr_normals {
-                                        Some(n.0)
-                                    } else {
-                                        None
-                                    },
-                                );
-                                let dae_vtn1: DaeVTNIndex = (
-                                    tri_vert.1,
-                                    if let Some(v) = curr_tex_verts {
-                                        Some(v.1)
-                                    } else {
-                                        None
-                                    },
-                                    if let Some(n) = curr_normals {
-                                        Some(n.1)
-                                    } else {
-                                        None
-                                    },
-                                );
-                                let dae_vtn2: DaeVTNIndex = (
-                                    tri_vert.2,
-                                    if let Some(v) = curr_tex_verts {
-                                        Some(v.2)
-                                    } else {
-                                        None
-                                    },
-                                    if let Some(n) = curr_normals {
-                                        Some(n.2)
-                                    } else {
-                                        None
-                                    },
-                                );
+                                indices.append(&mut index);
 
-                                process(dae_vtn0);
-                                process(dae_vtn1);
-                                process(dae_vtn2);
+                                let v_0 = object.vertices[v.0];
+                                let v_1 = object.vertices[v.1];
+                                let v_2 = object.vertices[v.2];
+
+                                let mut push_vert = |v: Vertex| {
+                                    let mut v_vec = vec![v.x as f32, v.y as f32, v.z as f32];
+                                    positions.append(&mut v_vec);
+                                };
+                                push_vert(v_0);
+                                push_vert(v_1);
+                                push_vert(v_2);
+                            });
+
+                            if let Some(tex_verts) = tris.tex_vertices {
+                                tex_verts.into_iter().for_each(|v| {
+                                    let uv_0 = object.tex_vertices[v.0];
+                                    let uv_1 = object.tex_vertices[v.1];
+                                    let uv_2 = object.tex_vertices[v.2];
+
+                                    let mut push_tex_vert = |v: TVertex| {
+                                        let mut uv_vec = vec![v.x as f32, v.y as f32];
+                                        uvs.append(&mut uv_vec);
+                                    };
+                                    push_tex_vert(uv_0);
+                                    push_tex_vert(uv_1);
+                                    push_tex_vert(uv_2);
+                                });
+                            }
+                            if let Some(norm_verts) = tris.normals {
+                                norm_verts.into_iter().for_each(|v| {
+                                    let n_0 = object.normals[v.0];
+                                    let n_1 = object.normals[v.1];
+                                    let n_2 = object.normals[v.2];
+
+                                    let mut push_tex_vert = |v: Vertex| {
+                                        let mut n_vec = vec![v.x as f32, v.y as f32, v.z as f32];
+                                        normals.append(&mut n_vec);
+                                    };
+                                    push_tex_vert(n_0);
+                                    push_tex_vert(n_1);
+                                    push_tex_vert(n_2);
+                                });
                             }
                         }
                         _ => {}
@@ -164,6 +161,7 @@ impl Loaded {
                 });
             }
         }
+
         Ok((cpu_meshes, cpu_materials))
     }
 }

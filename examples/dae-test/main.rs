@@ -28,14 +28,19 @@ fn main() {
 
     Loader::load(
         &[
-            "./examples/assets/sphere.dae",
+            "./examples/assets/sphere_03.dae",
+            "./examples/assets/sphere_02.dae",
+            "./examples/assets/cube_01.dae",
+            "./examples/assets/cube_02.dae",
+            "./examples/assets/sphere.jpg",
+            "./examples/assets/chips.jpg",
         ],
         move |mut loaded| {
-            let (mut meshes, _materials) = loaded.dae("./examples/assets/sphere.dae").unwrap();
-            let cpu_mesh = meshes.remove(0);
+            let (cpu_meshes, cpu_materials) = loaded.dae("./examples/assets/sphere_03.dae").unwrap();
             let mut model = Mesh::new(
                 &context,
-                &cpu_mesh,
+                &cpu_meshes[0],
+                // &Material::new(&context, &cpu_materials[0]).unwrap(),
             )
             .unwrap();
             model.transformation = Mat4::from_translation(vec3(0.0, 2.0, 0.0));
@@ -119,52 +124,4 @@ fn main() {
                 .unwrap();
         },
     );
-}
-
-fn vertex_transformations(cpu_mesh: &CPUMesh) -> Vec<Mat4> {
-    let mut iter = cpu_mesh.positions.iter();
-    let mut vertex_transformations = Vec::new();
-    while let Some(v) = iter.next() {
-        vertex_transformations.push(Mat4::from_translation(vec3(
-            *v,
-            *iter.next().unwrap(),
-            *iter.next().unwrap(),
-        )));
-    }
-    vertex_transformations
-}
-
-fn edge_transformations(cpu_mesh: &CPUMesh) -> Vec<Mat4> {
-    let mut edge_transformations = std::collections::HashMap::new();
-    let indices = cpu_mesh.indices.as_ref().unwrap().into_u32();
-    for f in 0..indices.len() / 3 {
-        let mut fun = |i1, i2| {
-            let p1 = vec3(
-                cpu_mesh.positions[i1 * 3],
-                cpu_mesh.positions[i1 * 3 + 1],
-                cpu_mesh.positions[i1 * 3 + 2],
-            );
-            let p2 = vec3(
-                cpu_mesh.positions[i2 * 3],
-                cpu_mesh.positions[i2 * 3 + 1],
-                cpu_mesh.positions[i2 * 3 + 2],
-            );
-            let scale = Mat4::from_nonuniform_scale((p1 - p2).magnitude(), 1.0, 1.0);
-            let rotation =
-                rotation_matrix_from_dir_to_dir(vec3(1.0, 0.0, 0.0), (p2 - p1).normalize());
-            let translation = Mat4::from_translation(p1);
-            let key = if i1 < i2 { (i1, i2) } else { (i2, i1) };
-            edge_transformations.insert(key, translation * rotation * scale);
-        };
-        let i1 = indices[3 * f] as usize;
-        let i2 = indices[3 * f + 1] as usize;
-        let i3 = indices[3 * f + 2] as usize;
-        fun(i1, i2);
-        fun(i1, i3);
-        fun(i2, i3);
-    }
-    edge_transformations
-        .drain()
-        .map(|(_, v)| v)
-        .collect::<Vec<Mat4>>()
 }
